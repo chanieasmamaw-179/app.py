@@ -22,7 +22,7 @@ load_dotenv()
 # Configure your email settings
 EMAIL_ADDRESS = 'chanieasmamaw@yahoo.com'
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
-TO_EMAILS = ['chanieasmamaw@yahoo.com', 'elsa32@gmail.com']
+TO_EMAILS = ['chanieasmamaw@yahoo.com', 'elsa32@walla.com']
 
 # Health check endpoint
 @app.route('/health')
