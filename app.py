@@ -41,7 +41,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Get the current domain for API calls
     const API_BASE_URL = window.location.hostname === 'localhost' ? 
         'http://localhost:5000' : 
-        'https://app-py-wtns.onrender.com';  // Your actual Flask app URL
+        'https://your-flask-app-name.onrender.com';  // Replace with your actual Flask app URL
 
     // Handle both registration forms and interest forms
     const forms = document.querySelectorAll('form[id*="registration"], form[id*="Registration"], form[id*="interest"], form[id*="Interest"]');
@@ -227,7 +227,7 @@ def test_email():
 
     try:
         # Test SMTP connection
-        with smtplib.SMTP_SSL('smtp.mail.yahoo.com', 465) as smtp:
+        with smtplib.SMTP_SSL('smtp.mail.yahoo.com', 465, timeout=120) as smtp:
             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             logger.info("SMTP connection successful!")
 
