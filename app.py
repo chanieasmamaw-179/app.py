@@ -227,7 +227,7 @@ def test_email():
 
     try:
         # Test SMTP connection
-        with smtplib.SMTP_SSL('smtp.mail.yahoo.com', 465, timeout=120) as smtp:
+        with smtplib.SMTP_SSL('smtp.mail.yahoo.com', 465, timeout=10) as smtp:
             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             logger.info("SMTP connection successful!")
 
