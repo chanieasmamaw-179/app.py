@@ -14,7 +14,7 @@ app = Flask(__name__)
 # --- Configure CORS ---
 CORS(app, resources={
     r"/*": {
-        "origins": ["https://www-bethe-el-com.onrender.com", "http://localhost:5001"],
+        "origins": ["https://www-bethe-el-com.onrender.com", "http://localhost:10000"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type"],
         "supports_credentials": True
@@ -216,5 +216,5 @@ def favicon():
 
 # --- Run app ---
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5001))
+    port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port, debug=False)
