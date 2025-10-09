@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, Response
+from flask import Flask, request, jsonify, Response, send_from_directory
 import smtplib
 from flask_cors import CORS
 from email.message import EmailMessage
@@ -6,10 +6,12 @@ import os
 from dotenv import load_dotenv
 import logging
 import datetime
+import traceback
 
+# --- Initialize App ---
 app = Flask(__name__)
 
-# Configure CORS with better settings
+# --- Configure CORS ---
 CORS(app, resources={
     r"/*": {
         "origins": ["https://www-bethe-el-com.onrender.com", "http://localhost:5001"],
@@ -19,376 +21,200 @@ CORS(app, resources={
     }
 })
 
-# Enable detailed logging
+# --- Logging setup ---
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# --- Load environment variables ---
 load_dotenv()
 
-# Configure your email settings
 EMAIL_ADDRESS = 'chanieasmamaw@yahoo.com'
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 TO_EMAILS = ['chanieasmamaw@yahoo.com', 'elsa32@walla.com']
 
-
-# Health check endpoint
+# --- Health check ---
 @app.route('/health')
 def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.datetime.now().isoformat()})
 
 
+# --- Debug config (safe) ---
+@app.route('/debug-config')
+def debug_config():
+    """Used for debugging in Render (won’t show password)"""
+    return jsonify({
+        'EMAIL_CONFIGURED': bool(EMAIL_PASSWORD),
+        'EMAIL_ADDRESS': EMAIL_ADDRESS,
+        'TO_EMAILS': TO_EMAILS,
+        'SERVER_TIME': datetime.datetime.now().isoformat()
+    })
+
+
+# --- Root route ---
 @app.route('/')
 def home():
-    return "Flask Email Server is running! Use POST /register for registrations."
+    return "✅ Flask Email Registration Server is running. Use POST /register."
 
 
+# --- Serve form.js dynamically ---
 @app.route('/form.js')
 def serve_javascript():
-    """Serve the JavaScript file for form handling"""
-    javascript_content = """
+    js_content = """
+// --- Dynamic form handler ---
 document.addEventListener('DOMContentLoaded', function() {
-    // Get the current domain for API calls - CORRECTED URL
-    const API_BASE_URL = window.location.hostname === 'localhost' ? 
-        'http://localhost:5000' : 
-        'https://www-bethe-el-com-app.onrender.com';
+    const API_BASE_URL = window.location.hostname === 'localhost'
+        ? 'http://localhost:5001'
+        : 'https://www-bethe-el-com-app.onrender.com';
 
-    console.log('Form handler loaded. API URL:', API_BASE_URL);
-
-    // Handle both registration forms and interest forms
     const forms = document.querySelectorAll('form[id*="registration"], form[id*="Registration"], form[id*="interest"], form[id*="Interest"]');
-
-    console.log('Found forms:', forms.length);
 
     forms.forEach(form => {
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
-            console.log('Form submitted');
 
-            const submitBtn = form.querySelector('input[type="submit"], button[type="submit"]') || 
-                            form.querySelector('#submitBtn') || 
-                            form.querySelector('button');
-            const messageDiv = form.querySelector('#message') || 
-                             document.getElementById('message') || 
-                             form.querySelector('.message');
+            const btn = form.querySelector('button[type="submit"], input[type="submit"]');
+            const msgBox = form.querySelector('.message') || document.getElementById('message');
+            if (btn) { btn.disabled = true; btn.textContent = 'Submitting...'; }
+            if (msgBox) msgBox.style.display = 'none';
 
-            // Disable submit button and show loading state
-            if (submitBtn) {
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Submitting...';
-            }
-
-            // Hide previous messages
-            if (messageDiv) {
-                messageDiv.style.display = 'none';
-            }
-
-            // Collect form data - flexible field detection
             const formData = {
-                name: form.querySelector('#name')?.value || 
-                      form.querySelector('[name="name"]')?.value || 
-                      form.querySelector('input[type="text"]')?.value || '',
-
-                email: form.querySelector('#email')?.value || 
-                       form.querySelector('[name="email"]')?.value || 
-                       form.querySelector('input[type="email"]')?.value || '',
-
-                program: form.querySelector('#program')?.value || 
-                         form.querySelector('[name="program"]')?.value || 
-                         form.querySelector('select')?.value || '',
-
-                registration_interest: form.querySelector('#message-text')?.value || 
-                                     form.querySelector('#messageText')?.value ||
-                                     form.querySelector('[name="message"]')?.value || 
-                                     form.querySelector('textarea')?.value || '',
-
-                role: form.querySelector('#role')?.value || 
-                      form.querySelector('[name="role"]')?.value || 
-                      form.querySelector('select[name*="role"]')?.value || 
-                      'participant'
+                name: form.querySelector('[name="name"], #name')?.value || '',
+                email: form.querySelector('[name="email"], #email')?.value || '',
+                program: form.querySelector('[name="program"], #program')?.value || '',
+                registration_interest: form.querySelector('textarea, #message-text')?.value || '',
+                role: form.querySelector('[name="role"], #role')?.value || 'participant'
             };
 
-            console.log('Submitting form data:', formData);
-
             try {
-                const response = await fetch(`${API_BASE_URL}/register`, {
+                const res = await fetch(`${API_BASE_URL}/register`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(formData)
                 });
+                const result = await res.json();
 
-                console.log('Response status:', response.status);
-                const result = await response.json();
-                console.log('Response data:', result);
-
-                if (response.ok && result.status === 'success') {
-                    // Success
-                    if (messageDiv) {
-                        messageDiv.className = 'message success';
-                        messageDiv.textContent = result.message;
-                        messageDiv.style.display = 'block';
-                    } else {
-                        alert(result.message);
-                    }
-
-                    // Reset form
+                if (res.ok && result.status === 'success') {
+                    msgBox.className = 'message success';
+                    msgBox.textContent = result.message;
+                    msgBox.style.display = 'block';
                     form.reset();
-
-                    // Show registration ID if provided
-                    if (result.registration_id) {
-                        setTimeout(() => {
-                            if (messageDiv) {
-                                messageDiv.innerHTML = result.message + '<br><strong>Registration ID: ' + result.registration_id + '</strong>';
-                            }
-                        }, 500);
-                    }
                 } else {
-                    // Error from server
-                    const errorMsg = result.message || 'Registration failed. Please try again.';
-                    if (messageDiv) {
-                        messageDiv.className = 'message error';
-                        messageDiv.textContent = errorMsg;
-                        messageDiv.style.display = 'block';
-                    } else {
-                        alert('Error: ' + errorMsg);
-                    }
+                    msgBox.className = 'message error';
+                    msgBox.textContent = result.message || 'Registration failed.';
+                    msgBox.style.display = 'block';
                 }
-
-            } catch (error) {
-                // Network or other error
-                console.error('Registration Error:', error);
-                const errorMsg = 'Cannot connect to registration service. Please check your internet connection and try again.';
-                if (messageDiv) {
-                    messageDiv.className = 'message error';
-                    messageDiv.textContent = errorMsg;
-                    messageDiv.style.display = 'block';
-                } else {
-                    alert(errorMsg);
-                }
+            } catch (err) {
+                msgBox.className = 'message error';
+                msgBox.textContent = 'Network error. Please try again.';
+                msgBox.style.display = 'block';
+                console.error(err);
             } finally {
-                // Re-enable submit button
-                if (submitBtn) {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Submit';
-                }
+                if (btn) { btn.disabled = false; btn.textContent = 'Submit'; }
             }
         });
     });
 });
-
-function showMessage(message, type = 'info') {
-    const messageDiv = document.getElementById('message') || document.querySelector('.message');
-    if (messageDiv) {
-        messageDiv.className = 'message ' + type;
-        messageDiv.textContent = message;
-        messageDiv.style.display = 'block';
-
-        if (type === 'success') {
-            setTimeout(() => {
-                messageDiv.style.display = 'none';
-            }, 5000);
-        }
-    }
-}
-
-function validateEmail(email) {
-    const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
-    return emailRegex.test(email);
-}
 """
-
-    response = Response(javascript_content, mimetype='application/javascript')
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
-    response.headers['Access-Control-Allow-Origin'] = '*'
-    return response
+    return Response(js_content, mimetype='application/javascript')
 
 
+# --- Email Test ---
 @app.route('/test-email', methods=['GET'])
 def test_email():
-    """Test endpoint to check email configuration"""
     if not EMAIL_PASSWORD:
         return jsonify({'status': 'fail', 'message': 'EMAIL_PASSWORD not configured'}), 500
-
     try:
         with smtplib.SMTP_SSL('smtp.mail.yahoo.com', 465) as smtp:
             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            logger.info("SMTP connection successful!")
-
             msg = EmailMessage()
-            msg['Subject'] = 'Test Email - Flask App'
+            msg['Subject'] = '✅ Test Email - Flask App'
             msg['From'] = EMAIL_ADDRESS
             msg['To'] = ', '.join(TO_EMAILS)
-            msg.set_content('This is a test email to verify the email configuration is working.')
-
+            msg.set_content('This is a test email to verify the SMTP setup.')
             smtp.send_message(msg)
-            return jsonify({'status': 'success', 'message': 'Test email sent successfully!'})
-
+        return jsonify({'status': 'success', 'message': 'Test email sent successfully!'})
     except Exception as e:
         logger.error(f"Email test failed: {str(e)}")
         return jsonify({'status': 'fail', 'message': f'Email test failed: {str(e)}'}), 500
 
 
+# --- Registration Endpoint ---
 @app.route('/register', methods=['POST', 'OPTIONS'])
 def register():
-    """Unified registration endpoint"""
-
-    # Handle preflight OPTIONS request
     if request.method == 'OPTIONS':
         return '', 204
 
-    logger.info("Registration request received")
-    logger.info(f"Request headers: {dict(request.headers)}")
-
     if not EMAIL_PASSWORD:
         logger.error("EMAIL_PASSWORD not configured")
-        return jsonify({'status': 'fail', 'message': 'Email configuration error'}), 500
-
-    data = request.json
-    logger.info(f"Received data: {data}")
-
-    if not data:
-        logger.error("No data provided in request")
-        return jsonify({'status': 'fail', 'message': 'No data provided'}), 400
-
-    # Extract form data
-    name = data.get('name', '').strip()
-    email = data.get('email', '').strip()
-    role = data.get('role', 'participant').strip()
-    program = data.get('program', '').strip()
-    registration_interest = data.get('registration_interest', '') or data.get('message', '')
-    registration_interest = registration_interest.strip()
-
-    logger.info(f"Parsed data - Name: {name}, Email: {email}, Role: {role}, Program: {program}")
-
-    # Validate required fields
-    if not name or not email:
-        logger.error("Missing required fields")
-        return jsonify({'status': 'fail', 'message': 'Missing required fields: name and email'}), 400
+        return jsonify({'status': 'fail', 'message': 'Server email configuration missing'}), 500
 
     try:
+        data = request.json or {}
+        name = data.get('name', '').strip()
+        email = data.get('email', '').strip()
+        role = data.get('role', 'participant').strip()
+        program = data.get('program', '').strip()
+        registration_interest = (data.get('registration_interest') or data.get('message', '')).strip()
+
+        if not name or not email:
+            return jsonify({'status': 'fail', 'message': 'Please enter both name and email.'}), 400
+
+        # --- Compose admin email ---
         is_program_registration = bool(program)
         admin_msg = EmailMessage()
-
-        if is_program_registration:
-            admin_msg['Subject'] = 'New Program Registration - Ethiopian Cultural Heritage'
-
-            program_names = {
-                'basket-weaving': 'Traditional Basket Weaving',
-                'coffee-ceremony': 'Ethiopian Coffee Ceremony',
-                'textile-arts': 'Traditional Textile Arts',
-                'pottery': 'Pottery & Clay Arts',
-                'culinary': 'Culinary Heritage',
-                'immersion': 'Cultural Immersion Program'
-            }
-            program_display = program_names.get(program, program)
-
-            admin_content = "=== NEW PROGRAM REGISTRATION ===\n\n"
-            admin_content += f"Full Name: {name}\n"
-            admin_content += f"Email Address: {email}\n"
-            admin_content += f"Role: {role.title()}\n"
-            admin_content += f"Interested Program: {program_display}\n"
-
-            if registration_interest:
-                admin_content += f"\nAdditional Information:\n{registration_interest}\n"
-
-            admin_content += "\n" + "=" * 40 + "\n"
-            admin_content += f"Registration submitted at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
-
-        else:
-            if role.lower() == 'organization':
-                admin_msg['Subject'] = 'New Interest Registration - Art Exhibition Website (Organization)'
-                admin_content = f'This is the registration report from organization\n\nName: {name}\nEmail: {email}\nRole: {role}'
-            elif role.lower() == 'artist':
-                admin_msg['Subject'] = 'New Interest Registration - Art Exhibition Website (Artist)'
-                admin_content = f'Role: artist\nName: {name}\nEmail: {email}\nRole: {role}'
-            else:
-                admin_msg['Subject'] = 'New Interest Registration - Art Exhibition Website'
-                admin_content = f'Name: {name}\nEmail: {email}\nRole: {role}'
-
-            if registration_interest:
-                admin_content += f'\nAdditional Info: {registration_interest}'
-
-            admin_content += f"\n\nSubmitted at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-
         admin_msg['From'] = EMAIL_ADDRESS
         admin_msg['To'] = ', '.join(TO_EMAILS)
-        admin_msg.set_content(admin_content)
 
-        logger.info("Attempting to connect to SMTP server...")
+        if is_program_registration:
+            admin_msg['Subject'] = f'New Program Registration: {program}'
+        else:
+            admin_msg['Subject'] = f'New Interest Registration - Role: {role}'
+
+        content = f"""
+Name: {name}
+Email: {email}
+Role: {role}
+Program: {program or 'N/A'}
+Message: {registration_interest or 'N/A'}
+Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+"""
+        admin_msg.set_content(content)
+
+        # --- Send emails ---
         with smtplib.SMTP_SSL('smtp.mail.yahoo.com', 465) as smtp:
-            logger.info("SMTP connection established")
             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
-            logger.info("SMTP login successful")
-
             smtp.send_message(admin_msg)
-            logger.info("Admin notification email sent successfully!")
+            logger.info("Admin email sent.")
 
-            if is_program_registration:
-                user_msg = EmailMessage()
-                user_msg['Subject'] = 'Registration Confirmation - Ethiopian Cultural Heritage Programs'
-                user_msg['From'] = EMAIL_ADDRESS
-                user_msg['To'] = email
+            # Send confirmation to user
+            confirm_msg = EmailMessage()
+            confirm_msg['From'] = EMAIL_ADDRESS
+            confirm_msg['To'] = email
+            confirm_msg['Subject'] = 'Thank you for registering!'
+            confirm_msg.set_content(f"Dear {name},\n\nThank you for registering with Beit-El Tibeb.\n\n{content}")
+            smtp.send_message(confirm_msg)
 
-                reg_id = f"ECH-{datetime.datetime.now().strftime('%Y%m%d')}-{hash(email) % 10000:04d}"
+        reg_id = f"REG-{datetime.datetime.now().strftime('%Y%m%d')}-{hash(email) % 10000:04d}"
+        return jsonify({'status': 'success', 'message': 'Registration submitted successfully!', 'registration_id': reg_id}), 200
 
-                user_content = f"Dear {name},\n\n"
-                user_content += "Thank you for your interest in our Ethiopian Cultural Heritage Programs!\n\n"
-                user_content += "We have received your registration with the following details:\n\n"
-                user_content += f"• Name: {name}\n"
-                user_content += f"• Email: {email}\n"
-                user_content += f"• Role: {role.title()}\n"
-                user_content += f"• Program of Interest: {program_display}\n"
-
-                if registration_interest:
-                    user_content += f"• Your Message: {registration_interest}\n"
-
-                user_content += f"• Registration ID: {reg_id}\n\n"
-                user_content += "Our team will review your application and contact you within 2-3 business days to discuss the next steps.\n\n"
-                user_content += "If you have any immediate questions, please don't hesitate to contact us at chanieasmamaw@yahoo.com.\n\n"
-                user_content += "Best regards,\n"
-                user_content += "Ethiopian Cultural Heritage Programs Team"
-
-                user_msg.set_content(user_content)
-                smtp.send_message(user_msg)
-                logger.info("User confirmation email sent successfully!")
-
-                return jsonify({
-                    'status': 'success',
-                    'message': 'Registration submitted successfully! Please check your email for confirmation details.',
-                    'registration_id': reg_id
-                }), 200
-
-        return jsonify({
-            'status': 'success',
-            'message': 'Registration sent successfully!'
-        }), 200
-
-    except smtplib.SMTPAuthenticationError as e:
-        logger.error(f"SMTP Authentication failed: {str(e)}")
-        return jsonify(
-            {'status': 'fail', 'message': 'Email authentication failed. Please check email credentials.'}), 500
-    except smtplib.SMTPException as e:
-        logger.error(f"SMTP error: {str(e)}")
-        return jsonify({'status': 'fail', 'message': f'Email delivery failed: {str(e)}'}), 500
+    except smtplib.SMTPAuthenticationError:
+        return jsonify({'status': 'fail', 'message': 'Email authentication failed. Please check email credentials.'}), 500
     except Exception as e:
-        logger.error(f"Unexpected error during registration: {str(e)}")
-        return jsonify({'status': 'fail', 'message': 'Registration failed. Please try again later.'}), 500
+        logger.error(f"Unexpected error: {str(e)}\n{traceback.format_exc()}")
+        return jsonify({'status': 'fail', 'message': 'Registration service temporarily unavailable. Please try again later.'}), 500
 
 
+# --- Favicon ---
 @app.route('/favicon.ico')
 def favicon():
-    """Serve favicon if exists"""
     try:
-        from flask import send_from_directory
         return send_from_directory(os.path.join(app.root_path, 'static'),
                                    'favicon.ico', mimetype='image/vnd.microsoft.icon')
-    except:
+    except FileNotFoundError:
         return '', 204
 
 
+# --- Run app ---
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port, debug=False)
