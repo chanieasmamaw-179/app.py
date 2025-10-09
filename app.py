@@ -38,10 +38,9 @@ def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.datetime.now().isoformat()})
 
 
-# --- Debug config (safe) ---
+# --- Debug config ---
 @app.route('/debug-config')
 def debug_config():
-    """Used for debugging in Render (won’t show password)"""
     return jsonify({
         'EMAIL_CONFIGURED': bool(EMAIL_PASSWORD),
         'EMAIL_ADDRESS': EMAIL_ADDRESS,
@@ -60,11 +59,10 @@ def home():
 @app.route('/form.js')
 def serve_javascript():
     js_content = """
-// --- Dynamic form handler ---
 document.addEventListener('DOMContentLoaded', function() {
     const API_BASE_URL = window.location.hostname === 'localhost'
         ? 'http://localhost:5001'
-        : 'https://www-bethe-el-com-app.onrender.com';  // ✅ Fixed: backend URL
+        : 'https://www-bethe-el-com-app.onrender.com';  // ✅ backend URL
 
     const forms = document.querySelectorAll('form[id*="registration"], form[id*="Registration"], form[id*="interest"], form[id*="Interest"]');
 
@@ -150,6 +148,8 @@ def register():
 
     try:
         data = request.json or {}
+        logger.info(f"Register endpoint hit with data: {data}")  # ✅ logging
+
         name = data.get('name', '').strip()
         email = data.get('email', '').strip()
         role = data.get('role', 'participant').strip()
@@ -164,12 +164,7 @@ def register():
         admin_msg = EmailMessage()
         admin_msg['From'] = EMAIL_ADDRESS
         admin_msg['To'] = ', '.join(TO_EMAILS)
-
-        if is_program_registration:
-            admin_msg['Subject'] = f'New Program Registration: {program}'
-        else:
-            admin_msg['Subject'] = f'New Interest Registration - Role: {role}'
-
+        admin_msg['Subject'] = f'New Program Registration: {program}' if is_program_registration else f'New Interest Registration - Role: {role}'
         content = f"""
 Name: {name}
 Email: {email}
@@ -186,7 +181,7 @@ Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             smtp.send_message(admin_msg)
             logger.info("Admin email sent.")
 
-            # Send confirmation to user
+            # Confirmation email to user
             confirm_msg = EmailMessage()
             confirm_msg['From'] = EMAIL_ADDRESS
             confirm_msg['To'] = email
