@@ -11,7 +11,7 @@ import datetime
 app = Flask(__name__)
 
 # Configure CORS to allow requests from your website
-CORS(app, origins=["https://www-bethe-el-com.onrender.com", "http://localhost:3000"])
+CORS(app, origins=["https://www-bethe-el-com.onrender.com", "http://localhost:5001"])
 
 # Enable detailed logging
 logging.basicConfig(level=logging.INFO)  # Changed from DEBUG to INFO for production
