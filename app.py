@@ -64,7 +64,7 @@ def serve_javascript():
 document.addEventListener('DOMContentLoaded', function() {
     const API_BASE_URL = window.location.hostname === 'localhost'
         ? 'http://localhost:5001'
-        : 'https://www-bethe-el-com.onrender.com';
+        : 'https://www-bethe-el-com-app.onrender.com';  // ✅ Fixed: backend URL
 
     const forms = document.querySelectorAll('form[id*="registration"], form[id*="Registration"], form[id*="interest"], form[id*="Interest"]');
 
