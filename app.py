@@ -14,7 +14,7 @@ app = Flask(__name__)
 # --- Configure CORS ---
 CORS(app, resources={
     r"/*": {
-        "origins": ["https://www-bethe-el-com.onrender.com", "http://localhost:10000"],
+        "origins": ["https://www-bethe-el-com.onrender.com", "http://localhost:5001"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type"],
         "supports_credentials": True
@@ -64,7 +64,7 @@ def serve_javascript():
 document.addEventListener('DOMContentLoaded', function() {
     const API_BASE_URL = window.location.hostname === 'localhost'
         ? 'http://localhost:5001'
-        : 'https://www-bethe-el-com-app.onrender.com';
+        : 'https://www-bethe-el-com.onrender.com';
 
     const forms = document.querySelectorAll('form[id*="registration"], form[id*="Registration"], form[id*="interest"], form[id*="Interest"]');
 
@@ -216,5 +216,5 @@ def favicon():
 
 # --- Run app ---
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
+    port = int(os.environ.get('PORT', 5001))
     app.run(host='0.0.0.0', port=port, debug=False)
