@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, Response
 import smtplib
 from flask_cors import CORS
-from flask import send_from_directory
 from email.message import EmailMessage
 import os
 from dotenv import load_dotenv
@@ -10,11 +9,18 @@ import datetime
 
 app = Flask(__name__)
 
-# Configure CORS to allow requests from your website
-CORS(app, origins=["https://www-bethe-el-com.onrender.com", "http://localhost:5001"])
+# Configure CORS with better settings
+CORS(app, resources={
+    r"/*": {
+        "origins": ["https://www-bethe-el-com.onrender.com", "http://localhost:5001"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type"],
+        "supports_credentials": True
+    }
+})
 
 # Enable detailed logging
-logging.basicConfig(level=logging.INFO)  # Changed from DEBUG to INFO for production
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 load_dotenv()
@@ -24,31 +30,39 @@ EMAIL_ADDRESS = 'chanieasmamaw@yahoo.com'
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 TO_EMAILS = ['chanieasmamaw@yahoo.com', 'elsa32@walla.com']
 
+
 # Health check endpoint
 @app.route('/health')
 def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.datetime.now().isoformat()})
 
+
 @app.route('/')
 def home():
     return "Flask Email Server is running! Use POST /register for registrations."
+
 
 @app.route('/form.js')
 def serve_javascript():
     """Serve the JavaScript file for form handling"""
     javascript_content = """
 document.addEventListener('DOMContentLoaded', function() {
-    // Get the current domain for API calls
+    // Get the current domain for API calls - CORRECTED URL
     const API_BASE_URL = window.location.hostname === 'localhost' ? 
         'http://localhost:5000' : 
-        'https://your-flask-app-name.onrender.com';  // Replace with your actual Flask app URL
+        'https://www-bethe-el-com-app.onrender.com';
+
+    console.log('Form handler loaded. API URL:', API_BASE_URL);
 
     // Handle both registration forms and interest forms
     const forms = document.querySelectorAll('form[id*="registration"], form[id*="Registration"], form[id*="interest"], form[id*="Interest"]');
 
+    console.log('Found forms:', forms.length);
+
     forms.forEach(form => {
         form.addEventListener('submit', async function(e) {
-            e.preventDefault(); // Prevent default form submission
+            e.preventDefault();
+            console.log('Form submitted');
 
             const submitBtn = form.querySelector('input[type="submit"], button[type="submit"]') || 
                             form.querySelector('#submitBtn') || 
@@ -83,20 +97,19 @@ document.addEventListener('DOMContentLoaded', function() {
                          form.querySelector('select')?.value || '',
 
                 registration_interest: form.querySelector('#message-text')?.value || 
-                                     form.querySelector('#message')?.value || 
+                                     form.querySelector('#messageText')?.value ||
                                      form.querySelector('[name="message"]')?.value || 
                                      form.querySelector('textarea')?.value || '',
 
                 role: form.querySelector('#role')?.value || 
                       form.querySelector('[name="role"]')?.value || 
                       form.querySelector('select[name*="role"]')?.value || 
-                      'participant' // Default role
+                      'participant'
             };
 
             console.log('Submitting form data:', formData);
 
             try {
-                // Use the API base URL for the request
                 const response = await fetch(`${API_BASE_URL}/register`, {
                     method: 'POST',
                     headers: {
@@ -105,7 +118,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     body: JSON.stringify(formData)
                 });
 
+                console.log('Response status:', response.status);
                 const result = await response.json();
+                console.log('Response data:', result);
 
                 if (response.ok && result.status === 'success') {
                     // Success
@@ -113,6 +128,8 @@ document.addEventListener('DOMContentLoaded', function() {
                         messageDiv.className = 'message success';
                         messageDiv.textContent = result.message;
                         messageDiv.style.display = 'block';
+                    } else {
+                        alert(result.message);
                     }
 
                     // Reset form
@@ -128,20 +145,26 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 } else {
                     // Error from server
+                    const errorMsg = result.message || 'Registration failed. Please try again.';
                     if (messageDiv) {
                         messageDiv.className = 'message error';
-                        messageDiv.textContent = result.message || 'Registration failed. Please try again.';
+                        messageDiv.textContent = errorMsg;
                         messageDiv.style.display = 'block';
+                    } else {
+                        alert('Error: ' + errorMsg);
                     }
                 }
 
             } catch (error) {
                 // Network or other error
                 console.error('Registration Error:', error);
+                const errorMsg = 'Cannot connect to registration service. Please check your internet connection and try again.';
                 if (messageDiv) {
                     messageDiv.className = 'message error';
-                    messageDiv.textContent = 'Registration service temporarily unavailable. Please try again later.';
+                    messageDiv.textContent = errorMsg;
                     messageDiv.style.display = 'block';
+                } else {
+                    alert(errorMsg);
                 }
             } finally {
                 // Re-enable submit button
@@ -154,7 +177,6 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// Rest of your JavaScript functions remain the same...
 function showMessage(message, type = 'info') {
     const messageDiv = document.getElementById('message') || document.querySelector('.message');
     if (messageDiv) {
@@ -162,7 +184,6 @@ function showMessage(message, type = 'info') {
         messageDiv.textContent = message;
         messageDiv.style.display = 'block';
 
-        // Auto-hide success messages after 5 seconds
         if (type === 'success') {
             setTimeout(() => {
                 messageDiv.style.display = 'none';
@@ -175,50 +196,16 @@ function validateEmail(email) {
     const emailRegex = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/;
     return emailRegex.test(email);
 }
-
-function validateForm(form) {
-    const name = form.querySelector('#name, [name="name"]')?.value?.trim();
-    const email = form.querySelector('#email, [name="email"]')?.value?.trim();
-
-    if (!name) {
-        showMessage('Please enter your name', 'error');
-        return false;
-    }
-
-    if (!email) {
-        showMessage('Please enter your email address', 'error');
-        return false;
-    }
-
-    if (!validateEmail(email)) {
-        showMessage('Please enter a valid email address', 'error');
-        return false;
-    }
-
-    return true;
-}
-
-// Enhanced form validation
-document.addEventListener('DOMContentLoaded', function() {
-    const emailInputs = document.querySelectorAll('#email, [name="email"], input[type="email"]');
-    emailInputs.forEach(emailInput => {
-        emailInput.addEventListener('blur', function() {
-            const email = this.value.trim();
-            if (email && !validateEmail(email)) {
-                showMessage('Please enter a valid email address', 'error');
-            }
-        });
-    });
-});
 """
 
     response = Response(javascript_content, mimetype='application/javascript')
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
     response.headers['Pragma'] = 'no-cache'
     response.headers['Expires'] = '0'
+    response.headers['Access-Control-Allow-Origin'] = '*'
     return response
 
-# Rest of your existing endpoints remain the same...
+
 @app.route('/test-email', methods=['GET'])
 def test_email():
     """Test endpoint to check email configuration"""
@@ -226,12 +213,10 @@ def test_email():
         return jsonify({'status': 'fail', 'message': 'EMAIL_PASSWORD not configured'}), 500
 
     try:
-        # Test SMTP connection
         with smtplib.SMTP_SSL('smtp.mail.yahoo.com', 465) as smtp:
             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             logger.info("SMTP connection successful!")
 
-            # Send test email
             msg = EmailMessage()
             msg['Subject'] = 'Test Email - Flask App'
             msg['From'] = EMAIL_ADDRESS
@@ -245,12 +230,18 @@ def test_email():
         logger.error(f"Email test failed: {str(e)}")
         return jsonify({'status': 'fail', 'message': f'Email test failed: {str(e)}'}), 500
 
-@app.route('/register', methods=['POST'])
-def register():
-    """Unified registration endpoint that handles both program applications and general interest registrations"""
-    logger.info("Registration request received")
 
-    # Check if email password is configured
+@app.route('/register', methods=['POST', 'OPTIONS'])
+def register():
+    """Unified registration endpoint"""
+
+    # Handle preflight OPTIONS request
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    logger.info("Registration request received")
+    logger.info(f"Request headers: {dict(request.headers)}")
+
     if not EMAIL_PASSWORD:
         logger.error("EMAIL_PASSWORD not configured")
         return jsonify({'status': 'fail', 'message': 'Email configuration error'}), 500
@@ -262,13 +253,11 @@ def register():
         logger.error("No data provided in request")
         return jsonify({'status': 'fail', 'message': 'No data provided'}), 400
 
-    # Extract form data - handle multiple field names for backward compatibility
+    # Extract form data
     name = data.get('name', '').strip()
     email = data.get('email', '').strip()
     role = data.get('role', 'participant').strip()
     program = data.get('program', '').strip()
-
-    # Handle both field names for backward compatibility
     registration_interest = data.get('registration_interest', '') or data.get('message', '')
     registration_interest = registration_interest.strip()
 
@@ -280,17 +269,12 @@ def register():
         return jsonify({'status': 'fail', 'message': 'Missing required fields: name and email'}), 400
 
     try:
-        # Determine registration type based on presence of program field
         is_program_registration = bool(program)
-
-        # Create admin notification email
         admin_msg = EmailMessage()
 
         if is_program_registration:
-            # Program registration email
             admin_msg['Subject'] = 'New Program Registration - Ethiopian Cultural Heritage'
 
-            # Program names mapping
             program_names = {
                 'basket-weaving': 'Traditional Basket Weaving',
                 'coffee-ceremony': 'Ethiopian Coffee Ceremony',
@@ -314,7 +298,6 @@ def register():
             admin_content += f"Registration submitted at: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
 
         else:
-            # General interest registration email
             if role.lower() == 'organization':
                 admin_msg['Subject'] = 'New Interest Registration - Art Exhibition Website (Organization)'
                 admin_content = f'This is the registration report from organization\n\nName: {name}\nEmail: {email}\nRole: {role}'
@@ -334,7 +317,6 @@ def register():
         admin_msg['To'] = ', '.join(TO_EMAILS)
         admin_msg.set_content(admin_content)
 
-        # Send admin notification
         logger.info("Attempting to connect to SMTP server...")
         with smtplib.SMTP_SSL('smtp.mail.yahoo.com', 465) as smtp:
             logger.info("SMTP connection established")
@@ -344,14 +326,12 @@ def register():
             smtp.send_message(admin_msg)
             logger.info("Admin notification email sent successfully!")
 
-            # Send user confirmation only for program registrations
             if is_program_registration:
                 user_msg = EmailMessage()
                 user_msg['Subject'] = 'Registration Confirmation - Ethiopian Cultural Heritage Programs'
                 user_msg['From'] = EMAIL_ADDRESS
                 user_msg['To'] = email
 
-                # Generate a simple registration ID
                 reg_id = f"ECH-{datetime.datetime.now().strftime('%Y%m%d')}-{hash(email) % 10000:04d}"
 
                 user_content = f"Dear {name},\n\n"
@@ -381,7 +361,6 @@ def register():
                     'registration_id': reg_id
                 }), 200
 
-        # For general interest registrations
         return jsonify({
             'status': 'success',
             'message': 'Registration sent successfully!'
@@ -398,16 +377,18 @@ def register():
         logger.error(f"Unexpected error during registration: {str(e)}")
         return jsonify({'status': 'fail', 'message': 'Registration failed. Please try again later.'}), 500
 
-@app.route('/send-email', methods=['POST'])
-def send_email_redirect():
-    """Legacy endpoint - redirects to unified register endpoint for backward compatibility"""
-    logger.info("Legacy /send-email endpoint called - redirecting to /register")
-    return register()
 
 @app.route('/favicon.ico')
 def favicon():
-    return '', 404  # Return 404 for favicon if you don't have one
+    """Serve favicon if exists"""
+    try:
+        from flask import send_from_directory
+        return send_from_directory(os.path.join(app.root_path, 'static'),
+                                   'favicon.ico', mimetype='image/vnd.microsoft.icon')
+    except:
+        return '', 204
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5001))
-    app.run(host='0.0.0.0', port=port, debug=False)  # Production settings
+    app.run(host='0.0.0.0', port=port, debug=False)
