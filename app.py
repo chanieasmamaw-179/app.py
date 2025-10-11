@@ -33,13 +33,13 @@ EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 TO_EMAILS = ['chanieasmamaw@yahoo.com', 'elsa32@walla.com']
 
 # --- Health check ---
-@app.route('/health')
+@app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.datetime.now().isoformat()})
 
 
 # --- Debug config ---
-@app.route('/debug-config')
+@app.route('/debug-config', methods=['GET'])
 def debug_config():
     return jsonify({
         'EMAIL_CONFIGURED': bool(EMAIL_PASSWORD),
@@ -50,19 +50,19 @@ def debug_config():
 
 
 # --- Root route ---
-@app.route('/')
+@app.route('/', methods=['GET'])
 def home():
     return "✅ Flask Email Registration Server is running. Use POST /register."
 
 
 # --- Serve form.js dynamically ---
-@app.route('/form.js')
+@app.route('/form.js', methods=['GET'])
 def serve_javascript():
     js_content = """
 document.addEventListener('DOMContentLoaded', function() {
     const API_BASE_URL = window.location.hostname === 'localhost'
         ? 'http://localhost:5001'
-        : 'https://www-bethe-el-com-app.onrender.com';  // ✅ Fixed: Added quotes and -app
+        : 'https://www-bethe-el-com-app.onrender.com';
 
     const forms = document.querySelectorAll('form[id*="registration"], form[id*="Registration"], form[id*="interest"], form[id*="Interest"]');
 
@@ -200,7 +200,7 @@ Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 
 # --- Favicon ---
-@app.route('/favicon.ico')
+@app.route('/favicon.ico', methods=['GET'])
 def favicon():
     try:
         return send_from_directory(os.path.join(app.root_path, 'static'),
