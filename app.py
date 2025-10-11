@@ -62,7 +62,7 @@ def serve_javascript():
 document.addEventListener('DOMContentLoaded', function() {
     const API_BASE_URL = window.location.hostname === 'localhost'
         ? 'http://localhost:5001'
-        : 'https://www-bethe-el-com-app.onrender.com';  // ✅ backend URL
+        : 'https://www-bethe-el-com-app.onrender.com';  // ✅ Fixed: Added quotes and -app
 
     const forms = document.querySelectorAll('form[id*="registration"], form[id*="Registration"], form[id*="interest"], form[id*="Interest"]');
 
@@ -148,7 +148,7 @@ def register():
 
     try:
         data = request.json or {}
-        logger.info(f"Register endpoint hit with data: {data}")  # ✅ logging
+        logger.info(f"Register endpoint hit with data: {data}")
 
         name = data.get('name', '').strip()
         email = data.get('email', '').strip()
